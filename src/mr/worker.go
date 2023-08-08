@@ -5,6 +5,7 @@ import (
 	"hash/fnv"
 	"log"
 	"net/rpc"
+	"os"
 )
 
 // Map functions return a slice of KeyValue.
@@ -22,14 +23,23 @@ func ihash(key string) int {
 }
 
 // main/mrworker.go calls this function.
-func Worker(mapf func(string, string) []KeyValue,
-	reducef func(string, []string) string) {
+func Worker(
+	mapf func(string, string) []KeyValue,
+	reducef func(string, []string) string,
+) {
+	command := RegisterActorCommand{}
+	resp := RegisteredActorResponse{}
+	ok := call("Coordinator.RegisterActor", &command, &resp)
+	if !ok {
+		log.Println("call Coordinator.RegisterActor failed")
+		return
+	}
+	log.Printf("Coordinator.RegisterActor: response=%v\n", resp)
 
-	// Your worker implementation here.
-
-	// uncomment to send the Example RPC to the coordinator.
-	// CallExample()
-
+	content := extractContent(resp.Task.Filename)
+	task := NewTask(&resp.Task, content)
+	actor := NewActor(resp.ActorId, os.Getpid(), task, mapf, reducef)
+	actor.Run()
 }
 
 // example function to show how to make an RPC call to the coordinator.
