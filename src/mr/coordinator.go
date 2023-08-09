@@ -10,58 +10,27 @@ import (
 )
 
 type Coordinator struct {
-	NewTaskId  func() TaskId
 	NewActorId func() ActorId
+	LivedActor map[ActorId]bool
 
-	WaitedTasks     map[TaskId]TaskViewModel
-	WaitedTaskIdAll []TaskId
-	WaitedTaskSize  int
+	MapTasks    map[TaskId]TaskViewModel
+	MapTaskSize int
 
-	AssignedTasks map[ActorId]TaskViewModel
-	IdleTaskIdAll []ActorId
-	IdleTaskSize  int
+	ReduceTasks    map[TaskId]TaskViewModel
+	ReduceTaskSize int
 
-	nReduce int
-	mu      sync.Mutex
+	mu sync.Mutex
 }
 
 func (c *Coordinator) RegisterActor(_ *RegisterActorCommand, resp *RegisteredActorResponse) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	var task TaskViewModel
 	actorId := c.NewActorId()
-	if c.WaitedTaskSize == 0 {
-		task = c.assignIdleTask(actorId)
-	} else {
-		task = c.assignBusyTask(actorId)
-	}
-	*resp = NewCreatedActorResponse(actorId, &task)
-
-	log.Printf("RegisterActor: actorId=%v assignBusyTask=%v\n", actorId, task)
+	c.LivedActor[actorId] = true
+	*resp = NewRegisteredActorResponse(actorId)
+	log.Printf("RegisterActor: actorId=%v\n", actorId)
 	return nil
-}
-
-func (c *Coordinator) assignIdleTask(actorId ActorId) TaskViewModel {
-	c.IdleTaskSize++
-	c.IdleTaskIdAll = append(c.IdleTaskIdAll, actorId)
-	return NewIdleTaskViewModel(c.NewTaskId())
-}
-
-func (c *Coordinator) assignBusyTask(actorId ActorId) TaskViewModel {
-	task := c.popWaitedTasks()
-	c.AssignedTasks[actorId] = task
-	return task
-}
-
-func (c *Coordinator) popWaitedTasks() TaskViewModel {
-	lastIndex := c.WaitedTaskSize - 1
-	taskId := c.WaitedTaskIdAll[lastIndex]
-	c.WaitedTaskSize--
-	c.WaitedTaskIdAll = c.WaitedTaskIdAll[:c.WaitedTaskSize]
-	task := c.WaitedTasks[taskId]
-	delete(c.WaitedTasks, taskId)
-	return task
 }
 
 // Your code here -- RPC handlers for the worker to call.
@@ -102,13 +71,7 @@ func (c *Coordinator) Done() bool {
 // main/mrcoordinator.go calls this function.
 // nReduce is the number of reduce tasks to use.
 func MakeCoordinator(files []string, nReduce int) *Coordinator {
-	var taskId TaskId
-	NewTaskId := func() TaskId {
-		taskId++
-		return taskId
-	}
-
-	var actorId ActorId
+	actorId := -1
 	NewActorId := func() ActorId {
 		actorId++
 		return actorId
@@ -116,24 +79,19 @@ func MakeCoordinator(files []string, nReduce int) *Coordinator {
 
 	fileQty := len(files)
 	tasks := make(map[TaskId]TaskViewModel)
-	taskIdAll := make([]TaskId, 0, fileQty)
 	for i := 0; i < fileQty; i++ {
-		id := NewTaskId()
-		tasks[id] = NewTaskViewModelWhenSetupCoordinator(id, files[i])
-		taskIdAll = append(taskIdAll, id)
+		id := i
+		tasks[id] = NewTaskViewModelWhenSetupCoordinator(id, files[i], nReduce)
 	}
 
 	c := Coordinator{
-		NewTaskId:       NewTaskId,
-		NewActorId:      NewActorId,
-		WaitedTasks:     tasks,
-		WaitedTaskIdAll: taskIdAll,
-		WaitedTaskSize:  fileQty,
-		AssignedTasks:   make(map[ActorId]TaskViewModel),
-		IdleTaskIdAll:   make([]ActorId, 0),
-		IdleTaskSize:    0,
-		nReduce:         nReduce,
-		mu:              sync.Mutex{},
+		NewActorId:     NewActorId,
+		LivedActor:     make(map[ActorId]bool),
+		MapTasks:       tasks,
+		MapTaskSize:    fileQty,
+		ReduceTasks:    make(map[TaskId]TaskViewModel, nReduce),
+		ReduceTaskSize: nReduce,
+		mu:             sync.Mutex{},
 	}
 
 	log.Printf("coordinator run: pid=%v\n", os.Getpid())

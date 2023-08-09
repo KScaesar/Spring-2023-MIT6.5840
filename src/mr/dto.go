@@ -1,36 +1,58 @@
 package mr
 
-type RegisterActorCommand struct{}
+type RegisterActorCommand struct {
+	ActorLocation string
+}
 
-func NewCreatedActorResponse(actorId ActorId, task *TaskViewModel) RegisteredActorResponse {
-	return RegisteredActorResponse{ActorId: actorId, Task: *task}
+func NewRegisteredActorResponse(actorId ActorId) RegisteredActorResponse {
+	return RegisteredActorResponse{ActorId: actorId}
 }
 
 type RegisteredActorResponse struct {
 	ActorId ActorId
-	Task    TaskViewModel
 }
 
-func NewTaskViewModelWhenSetupCoordinator(id TaskId, filename string) TaskViewModel {
-	return TaskViewModel{
-		Id:       id,
-		Filename: filename,
-		Kind:     TaskKindMap,
-		Done:     false,
-	}
+func NewActorViewModel(actorId ActorId, processId string) ActorViewModel {
+	return ActorViewModel{ActorId: actorId, ProcessId: processId}
 }
 
-func NewIdleTaskViewModel(id TaskId) TaskViewModel {
+type ActorViewModel struct {
+	ActorId   ActorId
+	ProcessId string
+}
+
+func NewTaskViewModelWhenSetupCoordinator(id TaskId, targetPath string, numberReduce int) TaskViewModel {
 	return TaskViewModel{
-		Id:   id,
-		Kind: TaskKindIdle,
-		Done: false,
+		Id:              id,
+		TaskKind:        TaskKindMap,
+		TaskState:       TaskStateIdle,
+		TargetPath:      []string{targetPath},
+		NumberReduce:    numberReduce,
+		AssignedActorId: -1,
 	}
 }
 
 type TaskViewModel struct {
-	Id       TaskId
-	Filename string
-	Kind     TaskKind
-	Done     bool
+	Id              TaskId
+	TaskKind        TaskKind
+	TaskState       TaskState
+	TargetPath      []string
+	NumberReduce    int
+	AssignedActorId int
+}
+
+func NewMapTaskResult(id TaskId, taskKind TaskKind, taskState TaskState, filenameAll []string) TaskResult {
+	return TaskResult{
+		Id:          id,
+		TaskKind:    taskKind,
+		TaskState:   taskState,
+		filenameAll: filenameAll,
+	}
+}
+
+type TaskResult struct {
+	Id          TaskId
+	TaskKind    TaskKind
+	TaskState   TaskState
+	filenameAll []string
 }
