@@ -1,9 +1,12 @@
 package mr
 
 import (
+	"errors"
+	"fmt"
 	"io"
 	"log"
 	"os"
+	"path/filepath"
 )
 
 type TargetKind int
@@ -52,4 +55,46 @@ func GetRangeFromListByCondition[T any](list []T, start int, condition func(i, j
 		tail = len(list)
 	}
 	return head, tail
+}
+
+// AtomicWriteFile
+// MapReduce paper mentions the trick of
+// using a temporary file and atomically renaming it
+// once it is completely written.
+//
+// Ref:
+//  http://static.googleusercontent.com/media/research.google.com/zh-TW//archive/mapreduce-osdi04.pdf
+func AtomicWriteFile(targetFilePath, tempFilePath string, writeAction func(file *os.File) error) error {
+	_, err := os.Stat(targetFilePath)
+	if err == nil {
+		log.Printf("file='%v' exist\n", targetFilePath)
+		return nil
+	}
+
+	if !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("query file for check task is completed: %w", err)
+	}
+
+	tempDir := filepath.Dir(tempFilePath)
+	tempPattern := filepath.Base(tempFilePath)
+	tempFile, err := os.CreateTemp(tempDir, tempPattern)
+	if err != nil {
+		return fmt.Errorf("create temp file failed: %w", err)
+	}
+
+	tempFilename := tempFile.Name()
+	err = writeAction(tempFile)
+	if err != nil {
+		tempFile.Close()
+		return fmt.Errorf("write file failed: %w", err)
+	}
+	tempFile.Close()
+
+	targetFilename := filepath.Base(targetFilePath)
+	err = os.Rename(tempFilename, targetFilename)
+	if err != nil {
+		return fmt.Errorf("rename file failed: %w", err)
+	}
+
+	return nil
 }

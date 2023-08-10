@@ -2,7 +2,6 @@ package mr
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -53,7 +52,7 @@ type MapTask struct {
 
 	assignedActorId int
 	numberReduce    int
-	mapper          func(string, string) []KeyValue
+	mapper          func(k1 string, v1 string) []KeyValue // map(k1,v1) → list(k2,v2)
 }
 
 func (t *MapTask) Run() TaskResult {
@@ -96,40 +95,19 @@ func (t *MapTask) shufflePartition(kvAll []KeyValue) [][]KeyValue {
 func (t *MapTask) writeIntermediateFile(partitions [][]KeyValue) (filenameAll []string) {
 	for reduceId, partition := range partitions {
 		filename := fmt.Sprintf("mr-%v-%v", t.id, reduceId)
+		tempFilePath := fmt.Sprintf("./mr-%v-temp*", t.id)
 		filenameAll = append(filenameAll, filename)
 
-		_, err := os.Stat("./" + filename)
-		if err == nil {
-			log.Printf("file='%v' exist\n", filename)
-			continue
-		}
-
-		if !errors.Is(err, os.ErrNotExist) {
-			log.Fatalf("query file for check task is completed: %v\n", err)
-			return
-		}
-
-		// MapReduce paper mentions the trick of
-		// using a temporary file and atomically renaming it
-		// once it is completely written.
-		file, err := os.CreateTemp("./", fmt.Sprintf("mr-%v-temp*", t.id))
+		err := AtomicWriteFile("./"+filename, tempFilePath, func(file *os.File) error {
+			b, _ := json.Marshal(partition)
+			_, err := file.Write(b)
+			if err != nil {
+				return err
+			}
+			return nil
+		})
 		if err != nil {
-			log.Fatalf("create file failed: %v\n", err)
-			return
-		}
-
-		tempName := file.Name()
-		b, _ := json.Marshal(partition)
-		_, err = file.Write(b)
-		if err != nil {
-			log.Fatalf("write intermediate file failed: %v\n", err)
-			return
-		}
-		file.Close()
-
-		err = os.Rename(tempName, filename)
-		if err != nil {
-			panic(fmt.Errorf("rename file failed: %v", err))
+			log.Fatalf("AtomicWriteFile: %v", err)
 			return
 		}
 	}
@@ -158,16 +136,16 @@ type ReduceTask struct {
 	targetPathAll []string
 
 	assignedActorId int
-	reducer         func(string, []string) string
+	reducer         func(k2 string, v2All []string) string // reduce(k2,list(v2)) → list(v2)
 }
 
 func (t *ReduceTask) Run() TaskResult {
-	keys, results := t.deReducer()
+	keys, results := t.doReducer()
 	filename := t.writeResultFile(keys, results)
 	return NewMapTaskResult(t.id, t.taskKind, t.taskState, []string{filename})
 }
 
-func (t *ReduceTask) deReducer() (keys []string, results map[string]string) {
+func (t *ReduceTask) doReducer() (keys []string, results map[string]string) {
 	payload := make([]KeyValue, 0)
 	key := ""
 	values := make([]string, 0)
@@ -211,40 +189,19 @@ func (t *ReduceTask) deReducer() (keys []string, results map[string]string) {
 
 func (t *ReduceTask) writeResultFile(keys []string, results map[string]string) (filename string) {
 	filename = fmt.Sprintf("mr-out-%v", t.id)
+	tempFilePath := fmt.Sprintf("mr-out-%v-temp*", t.id)
 
-	_, err := os.Stat("./" + filename)
-	if err == nil {
-		log.Printf("file='%v' exist\n", filename)
-		return filename
-	}
-
-	if !errors.Is(err, os.ErrNotExist) {
-		log.Fatalf("query file for check task is completed: %v\n", err)
-		return
-	}
-
-	// MapReduce paper mentions the trick of
-	// using a temporary file and atomically renaming it
-	// once it is completely written.
-	file, err := os.CreateTemp("./", fmt.Sprintf("mr-out-%v-temp*", t.id))
-	if err != nil {
-		log.Fatalf("create file failed: %v\n", err)
-		return
-	}
-	defer file.Close()
-
-	tempName := file.Name()
-	for _, key := range keys {
-		_, err = fmt.Fprintln(file, fmt.Sprintf("%v %v", key, results[key]))
-		if err != nil {
-			log.Fatalf("write result file failed: %v\n", err)
-			return
+	err := AtomicWriteFile("./"+filename, tempFilePath, func(file *os.File) error {
+		for _, key := range keys {
+			_, err := fmt.Fprintln(file, fmt.Sprintf("%v %v", key, results[key]))
+			if err != nil {
+				return err
+			}
 		}
-	}
-
-	err = os.Rename(tempName, filename)
+		return nil
+	})
 	if err != nil {
-		panic(fmt.Errorf("rename file failed: %v", err))
+		log.Fatalf("AtomicWriteFile: %v", err)
 		return
 	}
 
