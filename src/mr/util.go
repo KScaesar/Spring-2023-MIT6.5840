@@ -18,12 +18,12 @@ type OpenFileFunc func(targetPath string) []byte
 func OpenLocalFile(targetPath string) []byte {
 	file, err := os.Open(targetPath)
 	if err != nil {
-		log.Fatalf("cannot open %v", targetPath)
+		log.Fatalf("cannot open %v\n", targetPath)
 	}
 	defer file.Close()
 	content, err := io.ReadAll(file)
 	if err != nil {
-		log.Fatalf("cannot read %v", targetPath)
+		log.Fatalf("cannot read %v\n", targetPath)
 	}
 	return content
 }

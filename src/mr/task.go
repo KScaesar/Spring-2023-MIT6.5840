@@ -105,7 +105,7 @@ func (t *MapTask) writeIntermediateFile(partitions [][]KeyValue) (filenameAll []
 		}
 
 		if !errors.Is(err, os.ErrNotExist) {
-			log.Fatalf("query file for check task is completed: %w\n", err)
+			log.Fatalf("query file for check task is completed: %v\n", err)
 			return
 		}
 
@@ -114,7 +114,7 @@ func (t *MapTask) writeIntermediateFile(partitions [][]KeyValue) (filenameAll []
 		// once it is completely written.
 		file, err := os.CreateTemp("./", fmt.Sprintf("mr-%v-temp*", t.id))
 		if err != nil {
-			log.Fatalf("create file failed: %w\n", err)
+			log.Fatalf("create file failed: %v\n", err)
 			return
 		}
 
@@ -122,7 +122,7 @@ func (t *MapTask) writeIntermediateFile(partitions [][]KeyValue) (filenameAll []
 		b, _ := json.Marshal(partition)
 		_, err = file.Write(b)
 		if err != nil {
-			log.Fatalf("write intermediate file failed: %w\n", err)
+			log.Fatalf("write intermediate file failed: %v\n", err)
 			return
 		}
 		file.Close()
