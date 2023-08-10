@@ -28,9 +28,7 @@ func Worker(
 	reducef func(string, []string) string,
 ) {
 	pid := os.Getpid()
-	command := RegisterActorCommand{
-		ActorLocation: fmt.Sprintf("pid='%v'", pid),
-	}
+	command := NewRegisterActorCommand(fmt.Sprintf("pid='%v'", pid))
 	resp := RegisteredActorResponse{}
 	ok := call("Coordinator.RegisterActor", &command, &resp)
 	if !ok {

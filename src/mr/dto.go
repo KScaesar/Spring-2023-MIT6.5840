@@ -1,5 +1,9 @@
 package mr
 
+func NewRegisterActorCommand(actorLocation string) RegisterActorCommand {
+	return RegisterActorCommand{ActorLocation: actorLocation}
+}
+
 type RegisterActorCommand struct {
 	ActorLocation string
 }
@@ -55,4 +59,17 @@ type TaskResult struct {
 	TaskKind    TaskKind
 	TaskState   TaskState
 	filenameAll []string
+}
+
+func NewAcquireTaskCommand(actorId ActorId) AcquireTaskCommand {
+	return AcquireTaskCommand{ActorId: actorId}
+}
+
+type AcquireTaskCommand struct {
+	ActorId ActorId
+}
+
+type AcquiredTaskResponse struct {
+	Task           TaskViewModel
+	IsTaskAcquired bool
 }
