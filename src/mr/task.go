@@ -78,15 +78,16 @@ func (t *MapTask) shufflePartition(kvAll []KeyValue) [][]KeyValue {
 	})
 
 	partitions := make([][]KeyValue, t.numberReduce)
-	i := 0
-	for i < len(kvAll) {
-		j := i + 1
-		for j < len(kvAll) && kvAll[j].Key == kvAll[i].Key {
-			j++
-		}
-		idx := ihash(kvAll[i].Key) % t.numberReduce
-		partitions[idx] = append(partitions[idx], kvAll[i:j]...)
-		i = j
+	cursor := 0
+	for cursor < len(kvAll) {
+		head, tail := GetRangeFromListByCondition(kvAll, cursor, func(i, j int) bool {
+			return kvAll[i].Key == kvAll[j].Key
+		})
+		key := kvAll[cursor].Key
+		reduceTaskId := ihash(key) % t.numberReduce
+		// fmt.Println("key", key, "head", head, "tail", tail)
+		partitions[reduceTaskId] = append(partitions[reduceTaskId], kvAll[head:tail]...)
+		cursor = tail
 	}
 
 	return partitions
@@ -104,7 +105,7 @@ func (t *MapTask) writeIntermediateFile(partitions [][]KeyValue) (filenameAll []
 		}
 
 		if !errors.Is(err, os.ErrNotExist) {
-			panic(fmt.Errorf("query file for check task is completed: %v", err))
+			log.Fatalf("query file for check task is completed: %w\n", err)
 			return
 		}
 
@@ -113,7 +114,7 @@ func (t *MapTask) writeIntermediateFile(partitions [][]KeyValue) (filenameAll []
 		// once it is completely written.
 		file, err := os.CreateTemp("./", fmt.Sprintf("mr-%v-temp*", t.id))
 		if err != nil {
-			panic(fmt.Errorf("create file failed: %v", err))
+			log.Fatalf("create file failed: %w\n", err)
 			return
 		}
 
@@ -121,7 +122,7 @@ func (t *MapTask) writeIntermediateFile(partitions [][]KeyValue) (filenameAll []
 		b, _ := json.Marshal(partition)
 		_, err = file.Write(b)
 		if err != nil {
-			panic(fmt.Errorf("write intermediate file failed: %v", err))
+			log.Fatalf("write intermediate file failed: %w\n", err)
 			return
 		}
 		file.Close()
