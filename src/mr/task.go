@@ -59,7 +59,7 @@ func (t *MapTask) Run() TaskResult {
 	kvAll := t.doMapper()
 	partitions := t.shufflePartition(kvAll)
 	filenameAll := t.writeIntermediateFile(partitions)
-	return NewMapTaskResult(t.id, t.taskKind, t.taskState, filenameAll)
+	return NewMapTaskResult(t.id, t.taskState, filenameAll)
 }
 
 func (t *MapTask) doMapper() (output []KeyValue) {
@@ -142,7 +142,7 @@ type ReduceTask struct {
 func (t *ReduceTask) Run() TaskResult {
 	keys, results := t.doReducer()
 	filename := t.writeResultFile(keys, results)
-	return NewMapTaskResult(t.id, t.taskKind, t.taskState, []string{filename})
+	return NewReduceTaskResult(t.id, t.taskState, filename)
 }
 
 func (t *ReduceTask) doReducer() (keys []string, results map[string]string) {

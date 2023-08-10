@@ -46,11 +46,21 @@ type TaskViewModel struct {
 }
 
 func NewMapTaskResult(id TaskId, taskKind TaskKind, taskState TaskState, filenameAll []string) TaskResult {
+func NewMapTaskResult(id TaskId, taskState TaskState, partitionFilenameAll []string) TaskResult {
 	return TaskResult{
 		Id:          id,
-		TaskKind:    taskKind,
+		TaskKind:    TaskKindMap,
 		TaskState:   taskState,
-		filenameAll: filenameAll,
+		filenameAll: partitionFilenameAll,
+	}
+}
+
+func NewReduceTaskResult(id TaskId, taskState TaskState, finalOutputFilename string) TaskResult {
+	return TaskResult{
+		Id:          id,
+		TaskKind:    TaskKindReduce,
+		TaskState:   taskState,
+		filenameAll: []string{finalOutputFilename},
 	}
 }
 
