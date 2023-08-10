@@ -95,7 +95,7 @@ func (t *MapTask) shufflePartition(kvAll []KeyValue) [][]KeyValue {
 func (t *MapTask) writeIntermediateFile(partitions [][]KeyValue) (filenameAll []string) {
 	for reduceId, partition := range partitions {
 		filename := fmt.Sprintf("mr-%v-%v", t.id, reduceId)
-		tempFilePath := fmt.Sprintf("./mr-%v-temp*", t.id)
+		tempFilePath := filename + "-temp*"
 		filenameAll = append(filenameAll, filename)
 
 		err := AtomicWriteFile("./"+filename, tempFilePath, func(file *os.File) error {
@@ -189,7 +189,7 @@ func (t *ReduceTask) doReducer() (keys []string, results map[string]string) {
 
 func (t *ReduceTask) writeResultFile(keys []string, results map[string]string) (filename string) {
 	filename = fmt.Sprintf("mr-out-%v", t.id)
-	tempFilePath := fmt.Sprintf("mr-out-%v-temp*", t.id)
+	tempFilePath := filename + "-temp*"
 
 	err := AtomicWriteFile("./"+filename, tempFilePath, func(file *os.File) error {
 		for _, key := range keys {
