@@ -9,17 +9,69 @@ import (
 	"sync"
 )
 
+type CoordinatorState int
+
+const (
+	CoordinatorStateMap CoordinatorState = 1<<iota + 1
+	CoordinatorStateReduce
+)
+
 type Coordinator struct {
 	NewActorId func() ActorId
 	LivedActor map[ActorId]bool
 
-	MapTasks    map[TaskId]TaskViewModel
-	MapTaskSize int
-
-	ReduceTasks    map[TaskId]TaskViewModel
-	ReduceTaskSize int
+	MapTasks           map[TaskId]TaskViewModel
+	MapTaskIdleSize    int
+	MapTaskDoneSize    int
+	ReduceTasks        map[TaskId]TaskViewModel
+	ReduceTaskIdleSize int
+	ReduceTaskDoneSize int
+	NewReduceId        func() TaskId
+	State              CoordinatorState
 
 	mu sync.Mutex
+}
+func (c *Coordinator) AcquiredTask(command *AcquireTaskCommand, resp *AcquiredTaskResponse) error {
+	log.Printf("AcquireTaskCommand: %#v\n", command)
+	defer log.Printf("AcquiredTaskResponse: %#v\n", resp)
+	c.mu.Lock()
+
+	var task TaskViewModel
+	var err error
+	switch c.State {
+	case CoordinatorStateMap:
+		task, err = c.assignTask(command.ActorId, &c.MapTaskIdleSize, c.MapTasks)
+	case CoordinatorStateReduce:
+		task, err = c.assignTask(command.ActorId, &c.ReduceTaskIdleSize, c.ReduceTasks)
+	}
+	c.mu.Unlock()
+
+	if err != nil {
+		*resp = NewNotAcquiredTaskResponse()
+		return nil
+	}
+	*resp = NewNormalAcquiredTaskResponse(&task)
+	return nil
+}
+
+func (c *Coordinator) assignTask(actorId ActorId, idleSize *int, tasks map[TaskId]TaskViewModel) (TaskViewModel, error) {
+	if *idleSize == 0 {
+		return TaskViewModel{}, ErrNoTask
+	}
+
+	for taskId, task := range tasks {
+		if !task.IsIdle() {
+			continue
+		}
+
+		task.AssignedActorId = actorId
+		task.TaskState = TaskStateInProgress
+		*idleSize--
+		tasks[taskId] = task
+		return task, nil
+	}
+
+	return TaskViewModel{}, ErrNoTask
 }
 
 func (c *Coordinator) RegisterActor(_ *RegisterActorCommand, resp *RegisteredActorResponse) error {
@@ -77,6 +129,12 @@ func MakeCoordinator(files []string, nReduce int) *Coordinator {
 		return actorId
 	}
 
+	reduceId := -1
+	NewReduceId := func() ActorId {
+		reduceId++
+		return reduceId
+	}
+
 	fileQty := len(files)
 	tasks := make(map[TaskId]TaskViewModel)
 	for i := 0; i < fileQty; i++ {
@@ -85,13 +143,17 @@ func MakeCoordinator(files []string, nReduce int) *Coordinator {
 	}
 
 	c := Coordinator{
-		NewActorId:     NewActorId,
-		LivedActor:     make(map[ActorId]bool),
-		MapTasks:       tasks,
-		MapTaskSize:    fileQty,
-		ReduceTasks:    make(map[TaskId]TaskViewModel, nReduce),
-		ReduceTaskSize: nReduce,
-		mu:             sync.Mutex{},
+		NewActorId:         NewActorId,
+		LivedActor:         make(map[ActorId]bool),
+		MapTasks:           tasks,
+		MapTaskIdleSize:    fileQty,
+		MapTaskDoneSize:    0,
+		ReduceTasks:        make(map[TaskId]TaskViewModel, nReduce),
+		ReduceTaskIdleSize: nReduce,
+		ReduceTaskDoneSize: 0,
+		NewReduceId:        NewReduceId,
+		State:              CoordinatorStateMap,
+		mu:                 sync.Mutex{},
 	}
 
 	log.Printf("coordinator run: pid=%v\n", os.Getpid())

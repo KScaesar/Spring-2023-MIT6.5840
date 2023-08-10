@@ -45,7 +45,10 @@ type TaskViewModel struct {
 	AssignedActorId int
 }
 
-func NewMapTaskResult(id TaskId, taskKind TaskKind, taskState TaskState, filenameAll []string) TaskResult {
+func (t *TaskViewModel) IsIdle() bool {
+	return t.TaskState == TaskStateIdle
+}
+
 func NewMapTaskResult(id TaskId, taskState TaskState, partitionFilenameAll []string) TaskResult {
 	return TaskResult{
 		Id:          id,
@@ -77,6 +80,17 @@ func NewAcquireTaskCommand(actorId ActorId) AcquireTaskCommand {
 
 type AcquireTaskCommand struct {
 	ActorId ActorId
+}
+
+func NewNotAcquiredTaskResponse() AcquiredTaskResponse {
+	return AcquiredTaskResponse{}
+}
+
+func NewNormalAcquiredTaskResponse(task *TaskViewModel) AcquiredTaskResponse {
+	return AcquiredTaskResponse{
+		Task:           *task,
+		IsTaskAcquired: true,
+	}
 }
 
 type AcquiredTaskResponse struct {
