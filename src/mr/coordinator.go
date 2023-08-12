@@ -89,11 +89,11 @@ func (c *Coordinator) updateReduceTasksWhenMapStep(result *TaskResult) {
 		if exist {
 			reduceTask.CollectTargetFilenameForReduceTask(result.FilenameAll[i])
 		} else {
+			c.ReduceTaskIdleSize++
 			reduceTask = NewReduceTaskViewModelWhenMapTaskDone(reduceId, result.FilenameAll[i], c.ReduceTaskSize)
 		}
 		c.ReduceTasks[reduceId] = reduceTask
 	}
-	c.ReduceTaskIdleSize++
 }
 
 func (c *Coordinator) handleReduceResult(result *TaskResult) {
