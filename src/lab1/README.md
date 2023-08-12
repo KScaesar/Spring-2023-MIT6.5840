@@ -49,9 +49,6 @@ classDiagram
     - TargetPath : []string
     - NumberReduce
     - AssignedActorId
-    
-    + ParseReduceId()
-    + IsIdle()
   }
 
   class MapTask {
