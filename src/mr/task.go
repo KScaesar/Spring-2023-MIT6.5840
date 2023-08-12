@@ -1,6 +1,7 @@
 package mr
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -193,12 +194,18 @@ func (t *ReduceTask) writeResultFile(keys []string, results map[string]string) (
 	filename = "mr-out-" + strconv.Itoa(t.id)
 	tempFilePath := filename + "-temp*"
 
+	builder := bytes.Buffer{}
 	err := AtomicWriteFile(filename, tempFilePath, func(file *os.File) error {
 		for _, key := range keys {
-			_, err := fmt.Fprintln(file, fmt.Sprintf("%v %v", key, results[key]))
+			builder.WriteString(key)
+			builder.WriteString(" ")
+			builder.WriteString(results[key])
+			builder.WriteString("\n")
+			_, err := file.Write(builder.Bytes())
 			if err != nil {
 				return err
 			}
+			builder.Reset()
 		}
 		return nil
 	})
