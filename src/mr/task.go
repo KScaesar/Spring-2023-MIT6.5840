@@ -150,7 +150,6 @@ func (t *ReduceTask) doReducer() (keys []string, results map[string]string) {
 	const defaultSize = 1000
 	payload := make([]KeyValue, 0, defaultSize)
 	key := ""
-	values := make([]string, 0, defaultSize)
 	cursor := 0
 
 	keys = make([]string, 0, defaultSize)
@@ -166,24 +165,22 @@ func (t *ReduceTask) doReducer() (keys []string, results map[string]string) {
 
 			key = payload[head].Key
 			for _, kv := range payload[head:tail] {
-				values = append(values, kv.Value)
+				pairs[key] = append(pairs[key], kv.Value)
 			}
 			keys = append(keys, key)
-			pairs[key] = append(pairs[key], values...)
 			cursor = tail
 		}
 
 		// reset
 		payload = payload[:0]
 		key = ""
-		values = values[:0]
 		cursor = 0
 	}
 
 	results = make(map[string]string, len(pairs))
-	for key, values = range pairs {
-		result := t.reducer(key, values)
-		results[key] = result
+	for k, values := range pairs {
+		result := t.reducer(k, values)
+		results[k] = result
 	}
 
 	return keys, results
