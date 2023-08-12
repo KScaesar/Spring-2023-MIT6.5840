@@ -87,7 +87,7 @@ func (c *Coordinator) updateReduceTasksWhenMapStep(result *TaskResult) {
 	for i, reduceId := range reduceIdAll {
 		reduceTask, exist := c.ReduceTasks[reduceId]
 		if exist {
-			reduceTask.TargetPath = append(reduceTask.TargetPath, result.FilenameAll[i])
+			reduceTask.CollectTargetFilenameForReduceTask(result.FilenameAll[i])
 		} else {
 			reduceTask = NewReduceTaskViewModelWhenMapTaskDone(reduceId, result.FilenameAll[i], c.ReduceTaskSize)
 		}

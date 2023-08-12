@@ -57,6 +57,14 @@ func (t *TaskViewModel) IsIdle() bool {
 	return t.TaskState == TaskStateIdle
 }
 
+func (t *TaskViewModel) CollectTargetFilenameForReduceTask(filename string) {
+	if t.TaskKind == TaskKindMap {
+		log.Fatalln("Task Kind must be Reduce when CollectTargetFilenameForReduceTask")
+		return
+	}
+	t.TargetPath = append(t.TargetPath, filename)
+}
+
 func NewMapTaskResult(id TaskId, taskState TaskState, partitionFilenameAll []string) TaskResult {
 	return TaskResult{
 		Id:          id,
