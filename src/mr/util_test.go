@@ -5,19 +5,47 @@ import (
 )
 
 func TestGetRangeFromListByCondition(t *testing.T) {
-	list := []int{0, 1, 1, 1, 1, 1, 3, 4}
-	start := 1
-	eq := func(i, j int) bool {
-		return list[i] == list[j]
-	}
-	wantHead := 1
-	wantTail := 6
+	testcase := []struct {
+		name     string
+		wantHead int
+		wantTail int
 
-	gotHead, gotTail := GetRangeFromListByCondition(list, start, eq)
-	if gotHead != wantHead {
-		t.Errorf("GetRangeFromListByCondition() gotHead = %v, want %v", gotHead, wantHead)
+		list  []int
+		start int
+	}{
+		{
+			wantHead: 1,
+			wantTail: 6,
+			list:     []int{0, 1, 1, 1, 1, 1, 3, 4},
+			start:    1,
+		},
+		{
+			wantHead: 6,
+			wantTail: 7,
+			list:     []int{0, 1, 1, 1, 1, 1, 3, 4},
+			start:    6,
+		},
+		{
+			wantHead: 6,
+			wantTail: 8,
+			list:     []int{0, 1, 1, 1, 1, 1, 4, 4},
+			start:    6,
+		},
 	}
-	if gotTail != wantTail {
-		t.Errorf("GetRangeFromListByCondition() gotTail = %v, want %v", gotTail, wantTail)
+
+	for _, tt := range testcase {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			eq := func(i, j int) bool {
+				return tt.list[i] == tt.list[j]
+			}
+			gotHead, gotTail := GetRangeFromListByCondition(tt.list, tt.start, eq)
+			if gotHead != tt.wantHead {
+				t.Errorf("GetRangeFromListByCondition() gotHead = %v, want %v", gotHead, tt.wantHead)
+			}
+			if gotTail != tt.wantTail {
+				t.Errorf("GetRangeFromListByCondition() gotTail = %v, want %v", gotTail, tt.wantTail)
+			}
+		})
 	}
 }

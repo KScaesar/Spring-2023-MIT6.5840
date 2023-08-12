@@ -31,7 +31,7 @@ type Actor struct {
 }
 
 func (a *Actor) Run() {
-	log.Printf("actor run: actorId=%v, processId=%v\n", a.Id, a.ProcessId)
+	log.Printf("Actor run: actorId=%v, processId=%v\n", a.Id, a.ProcessId)
 	ticker := time.NewTicker(1 * time.Second)
 	for {
 		select {
@@ -50,7 +50,8 @@ func (a *Actor) Run() {
 }
 
 func (a *Actor) ReportTaskResult(r *TaskResult) {
-	ok := call("Coordinator.ReportTaskResult", r, nil)
+	resp := TaskResultResponse{}
+	ok := call("Coordinator.ReportTaskResult", r, &resp)
 	if !ok {
 		log.Fatalln("Coordinator.ReportTaskResult fail")
 		return
@@ -65,7 +66,7 @@ func (a *Actor) AcquireTask() (Task, error) {
 	if !ok {
 		return nil, fmt.Errorf("call Coordinator.AcquiredTask failed: %w", ErrSystemFail)
 	}
-	log.Printf("Coordinator.AcquiredTask: response=%#v\n", resp)
+	log.Printf("AcquireTask response: %#v\n", resp)
 
 	if !resp.IsTaskAcquired {
 		return nil, ErrNoTask

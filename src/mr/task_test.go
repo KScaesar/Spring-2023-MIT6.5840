@@ -35,11 +35,13 @@ func TestMapTask_Run(t1 *testing.T) {
 
 func TestReduceTask_Run(t1 *testing.T) {
 	dto := &TaskViewModel{
-		Id:              2,
-		TaskKind:        TaskKindMap,
-		TaskState:       TaskStateInProgress,
-		TargetPath:      []string{"mr-3-2"},
-		NumberReduce:    3,
+		Id:        0,
+		TaskKind:  TaskKindReduce,
+		TaskState: TaskStateInProgress,
+		// TargetPath: []string{"mr-2-0", "mr-1-0", "mr-0-0", "mr-3-0", "mr-7-0", "mr-5-0", "mr-6-0", "mr-4-0"},
+		TargetPath: []string{"mr-2-0", "mr-1-0", "mr-0-0", "mr-3-0", "mr-7-0"},
+		// TargetPath:      []string{"mr-2-0", "mr-1-0", "mr-0-0"},
+		NumberReduce:    2,
 		AssignedActorId: 0,
 	}
 	wordCountReducer := func(key string, values []string) string {

@@ -1,5 +1,11 @@
 package mr
 
+import (
+	"log"
+	"strconv"
+	"strings"
+)
+
 func NewRegisterActorCommand(actorLocation string) RegisterActorCommand {
 	return RegisterActorCommand{ActorLocation: actorLocation}
 }
@@ -16,19 +22,21 @@ type RegisteredActorResponse struct {
 	ActorId ActorId
 }
 
-func NewActorViewModel(actorId ActorId, processId string) ActorViewModel {
-	return ActorViewModel{ActorId: actorId, ProcessId: processId}
-}
-
-type ActorViewModel struct {
-	ActorId   ActorId
-	ProcessId string
-}
-
-func NewTaskViewModelWhenSetupCoordinator(id TaskId, targetPath string, numberReduce int) TaskViewModel {
+func NewMapTaskViewModelWhenSetupCoordinator(id TaskId, targetPath string, numberReduce int) TaskViewModel {
 	return TaskViewModel{
 		Id:              id,
 		TaskKind:        TaskKindMap,
+		TaskState:       TaskStateIdle,
+		TargetPath:      []string{targetPath},
+		NumberReduce:    numberReduce,
+		AssignedActorId: -1,
+	}
+}
+
+func NewReduceTaskViewModelWhenMapTaskDone(id TaskId, targetPath string, numberReduce int) TaskViewModel {
+	return TaskViewModel{
+		Id:              id,
+		TaskKind:        TaskKindReduce,
 		TaskState:       TaskStateIdle,
 		TargetPath:      []string{targetPath},
 		NumberReduce:    numberReduce,
@@ -54,7 +62,7 @@ func NewMapTaskResult(id TaskId, taskState TaskState, partitionFilenameAll []str
 		Id:          id,
 		TaskKind:    TaskKindMap,
 		TaskState:   taskState,
-		filenameAll: partitionFilenameAll,
+		FilenameAll: partitionFilenameAll,
 	}
 }
 
@@ -63,7 +71,7 @@ func NewReduceTaskResult(id TaskId, taskState TaskState, finalOutputFilename str
 		Id:          id,
 		TaskKind:    TaskKindReduce,
 		TaskState:   taskState,
-		filenameAll: []string{finalOutputFilename},
+		FilenameAll: []string{finalOutputFilename},
 	}
 }
 
@@ -71,8 +79,23 @@ type TaskResult struct {
 	Id          TaskId
 	TaskKind    TaskKind
 	TaskState   TaskState
-	filenameAll []string
+	FilenameAll []string
 }
+
+func (t *TaskResult) ParseReduceIdAll() (reduceIdAll []int) {
+	if t.TaskKind == TaskKindMap {
+		for _, filename := range t.FilenameAll {
+			splitN := strings.SplitN(filename, "-", 3)
+			reduceId, _ := strconv.Atoi(splitN[2])
+			reduceIdAll = append(reduceIdAll, reduceId)
+		}
+		return
+	}
+	log.Fatalln("Task Kind must be Map when ParseReduceIdAll")
+	return nil
+}
+
+type TaskResultResponse struct{}
 
 func NewAcquireTaskCommand(actorId ActorId) AcquireTaskCommand {
 	return AcquireTaskCommand{ActorId: actorId}

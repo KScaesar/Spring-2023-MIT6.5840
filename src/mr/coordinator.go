@@ -7,6 +7,7 @@ import (
 	"net/rpc"
 	"os"
 	"sync"
+	"sync/atomic"
 )
 
 type CoordinatorState int
@@ -17,23 +18,89 @@ const (
 )
 
 type Coordinator struct {
-	NewActorId func() ActorId
-	LivedActor map[ActorId]bool
+	NewActorId  func() ActorId
+	LivedActors map[ActorId]bool
 
-	MapTasks           map[TaskId]TaskViewModel
-	MapTaskIdleSize    int
-	MapTaskDoneSize    int
+	MapTasks        map[TaskId]TaskViewModel
+	MapTaskSize     int
+	MapTaskIdleSize int
+	MapTaskDoneSize int
+
 	ReduceTasks        map[TaskId]TaskViewModel
+	ReduceTaskSize     int
 	ReduceTaskIdleSize int
 	ReduceTaskDoneSize int
-	NewReduceId        func() TaskId
-	State              CoordinatorState
+
+	State CoordinatorState
+	done  atomic.Bool
 
 	mu sync.Mutex
 }
+
+func (c *Coordinator) ReportTaskResult(result *TaskResult, _ *TaskResultResponse) error {
+	log.Printf("ReportTaskResult input: %#v\n", result)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	switch result.TaskKind {
+	case TaskKindMap:
+		c.handleMapResult(result)
+	case TaskKindReduce:
+		c.handleReduceResult(result)
+	}
+
+	return nil
+}
+
+func (c *Coordinator) handleReduceResult(result *TaskResult) {
+	// The task might have been duplicated due to network issues.
+	if c.ReduceTasks[result.Id].TaskState == TaskStateDone {
+		return
+	}
+	reduceTask := c.ReduceTasks[result.Id]
+	reduceTask.TaskState = result.TaskState
+	c.ReduceTasks[result.Id] = reduceTask
+	c.ReduceTaskDoneSize++
+	if c.ReduceTaskSize == c.ReduceTaskDoneSize {
+		c.done.Store(true)
+	}
+}
+
+func (c *Coordinator) handleMapResult(result *TaskResult) {
+	// The task might have been duplicated due to network issues.
+	if c.MapTasks[result.Id].TaskState == TaskStateDone {
+		return
+	}
+	c.updateMapTasks(result)
+	c.updateReduceTasks(result)
+	if c.MapTaskDoneSize == c.MapTaskSize {
+		c.State = CoordinatorStateReduce
+	}
+}
+
+func (c *Coordinator) updateMapTasks(result *TaskResult) {
+	mapTask := c.MapTasks[result.Id]
+	mapTask.TaskState = result.TaskState
+	c.MapTasks[result.Id] = mapTask
+	c.MapTaskDoneSize++
+}
+
+func (c *Coordinator) updateReduceTasks(result *TaskResult) {
+	reduceIdAll := result.ParseReduceIdAll()
+	for i, reduceId := range reduceIdAll {
+		reduceTask, exist := c.ReduceTasks[reduceId]
+		if exist {
+			reduceTask.TargetPath = append(reduceTask.TargetPath, result.FilenameAll[i])
+		} else {
+			reduceTask = NewReduceTaskViewModelWhenMapTaskDone(reduceId, result.FilenameAll[i], c.ReduceTaskSize)
+		}
+		c.ReduceTasks[reduceId] = reduceTask
+	}
+	c.ReduceTaskIdleSize++
+}
+
 func (c *Coordinator) AcquiredTask(command *AcquireTaskCommand, resp *AcquiredTaskResponse) error {
-	log.Printf("AcquireTaskCommand: %#v\n", command)
-	defer log.Printf("AcquiredTaskResponse: %#v\n", resp)
+	log.Printf("AcquiredTask input: %#v\n", command)
 	c.mu.Lock()
 
 	var task TaskViewModel
@@ -79,9 +146,9 @@ func (c *Coordinator) RegisterActor(_ *RegisterActorCommand, resp *RegisteredAct
 	defer c.mu.Unlock()
 
 	actorId := c.NewActorId()
-	c.LivedActor[actorId] = true
+	c.LivedActors[actorId] = true
 	*resp = NewRegisteredActorResponse(actorId)
-	log.Printf("RegisterActor: actorId=%v\n", actorId)
+	log.Printf("RegisterActor output: actorId=%v\n", actorId)
 	return nil
 }
 
@@ -112,11 +179,7 @@ func (c *Coordinator) server() {
 // main/mrcoordinator.go calls Done() periodically to find out
 // if the entire job has finished.
 func (c *Coordinator) Done() bool {
-	ret := false
-
-	// Your code here.
-
-	return ret
+	return c.done.Load()
 }
 
 // create a Coordinator.
@@ -129,34 +192,30 @@ func MakeCoordinator(files []string, nReduce int) *Coordinator {
 		return actorId
 	}
 
-	reduceId := -1
-	NewReduceId := func() ActorId {
-		reduceId++
-		return reduceId
-	}
-
 	fileQty := len(files)
 	tasks := make(map[TaskId]TaskViewModel)
 	for i := 0; i < fileQty; i++ {
 		id := i
-		tasks[id] = NewTaskViewModelWhenSetupCoordinator(id, files[i], nReduce)
+		tasks[id] = NewMapTaskViewModelWhenSetupCoordinator(id, files[i], nReduce)
 	}
 
 	c := Coordinator{
 		NewActorId:         NewActorId,
-		LivedActor:         make(map[ActorId]bool),
+		LivedActors:        make(map[ActorId]bool),
 		MapTasks:           tasks,
+		MapTaskSize:        fileQty,
 		MapTaskIdleSize:    fileQty,
 		MapTaskDoneSize:    0,
 		ReduceTasks:        make(map[TaskId]TaskViewModel, nReduce),
-		ReduceTaskIdleSize: nReduce,
+		ReduceTaskSize:     nReduce,
+		ReduceTaskIdleSize: 0,
 		ReduceTaskDoneSize: 0,
-		NewReduceId:        NewReduceId,
 		State:              CoordinatorStateMap,
+		done:               atomic.Bool{},
 		mu:                 sync.Mutex{},
 	}
 
-	log.Printf("coordinator run: pid=%v\n", os.Getpid())
+	log.Printf("Coordinator run: pid=%v nMap=%v nReduce=%v\n", os.Getpid(), fileQty, nReduce)
 	c.server()
 	return &c
 }

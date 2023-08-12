@@ -36,19 +36,21 @@ func OpenLocalFile(targetPath string) []byte {
 // the inclusive starting index and exclusive ending index of the obtained range, respectively.
 //
 // Example:
-//   list := [-3, -2, -2, -2, -1]
-//   head, tail := GetRangeFromListByCondition(list, 1, eq)
+//
+//	list := [-3, -2, -2, -2, -1]
+//	head, tail := GetRangeFromListByCondition(list, 1, eq)
 //
 // Range:
-//   [1, 4)
+//
+//	[1, 4)
 func GetRangeFromListByCondition[T any](list []T, start int, condition func(i, j int) bool) (head, tail int) {
 	if start >= len(list) {
 		log.Fatalln("GetRangeFromListByCondition: The starting index cannot be equal to the length of the list.")
 	}
 	head = start
-	if head+1 < len(list) {
+	if head < len(list) {
 		tail = head + 1
-		for condition(head, tail) {
+		for tail < len(list) && condition(head, tail) {
 			tail++
 		}
 	} else {
@@ -63,7 +65,8 @@ func GetRangeFromListByCondition[T any](list []T, start int, condition func(i, j
 // once it is completely written.
 //
 // Ref:
-//  http://static.googleusercontent.com/media/research.google.com/zh-TW//archive/mapreduce-osdi04.pdf
+//
+//	http://static.googleusercontent.com/media/research.google.com/zh-TW//archive/mapreduce-osdi04.pdf
 func AtomicWriteFile(targetFilePath, tempFilePath string, writeAction func(file *os.File) error) error {
 	_, err := os.Stat(targetFilePath)
 	if err == nil {

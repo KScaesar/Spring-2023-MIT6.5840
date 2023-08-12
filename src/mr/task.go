@@ -6,23 +6,24 @@ import (
 	"log"
 	"os"
 	"sort"
+	"strconv"
 )
 
 type TaskId = int
 
-type TaskKind int
+type TaskKind string
 
 const (
-	TaskKindMap TaskKind = 1<<iota + 1
-	TaskKindReduce
+	TaskKindMap    TaskKind = "Map"
+	TaskKindReduce TaskKind = "Reduce"
 )
 
-type TaskState int
+type TaskState string
 
 const (
-	TaskStateIdle TaskState = 1<<iota + 1
-	TaskStateInProgress
-	TaskStateDone
+	TaskStateIdle       TaskState = "idle"
+	TaskStateInProgress TaskState = "wip"
+	TaskStateDone       TaskState = "done"
 )
 
 type Task interface {
@@ -98,7 +99,7 @@ func (t *MapTask) writeIntermediateFile(partitions [][]KeyValue) (filenameAll []
 		tempFilePath := filename + "-temp*"
 		filenameAll = append(filenameAll, filename)
 
-		err := AtomicWriteFile("./"+filename, tempFilePath, func(file *os.File) error {
+		err := AtomicWriteFile(filename, tempFilePath, func(file *os.File) error {
 			b, _ := json.Marshal(partition)
 			_, err := file.Write(b)
 			if err != nil {
@@ -146,12 +147,13 @@ func (t *ReduceTask) Run() TaskResult {
 }
 
 func (t *ReduceTask) doReducer() (keys []string, results map[string]string) {
-	payload := make([]KeyValue, 0)
+	const defaultSize = 1000
+	payload := make([]KeyValue, 0, defaultSize)
 	key := ""
-	values := make([]string, 0)
+	values := make([]string, 0, defaultSize)
 	cursor := 0
 
-	keys = make([]string, 0)
+	keys = make([]string, 0, defaultSize)
 	pairs := make(map[string][]string)
 	for _, path := range t.targetPathAll {
 		data := OpenLocalFile(path)
@@ -188,10 +190,10 @@ func (t *ReduceTask) doReducer() (keys []string, results map[string]string) {
 }
 
 func (t *ReduceTask) writeResultFile(keys []string, results map[string]string) (filename string) {
-	filename = fmt.Sprintf("mr-out-%v", t.id)
+	filename = "mr-out-" + strconv.Itoa(t.id)
 	tempFilePath := filename + "-temp*"
 
-	err := AtomicWriteFile("./"+filename, tempFilePath, func(file *os.File) error {
+	err := AtomicWriteFile(filename, tempFilePath, func(file *os.File) error {
 		for _, key := range keys {
 			_, err := fmt.Fprintln(file, fmt.Sprintf("%v %v", key, results[key]))
 			if err != nil {
