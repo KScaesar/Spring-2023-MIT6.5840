@@ -43,7 +43,7 @@ func (a *Actor) Run() {
 				}
 				log.Fatalln(err.Error())
 			}
-			result := task.Run()
+			result := task.Exec()
 			a.ReportTaskResult(&result)
 		}
 	}

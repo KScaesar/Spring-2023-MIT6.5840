@@ -1,10 +1,95 @@
-# Tutorial
-
-## 6.5840 Lab 1: MapReduce
+# 6.5840 Lab 1: MapReduce
 
 <https://pdos.csail.mit.edu/6.824/labs/lab-mr.html>
 
-## lab1
+## code design
+
+[implement code](../mr)
+- [Coordinator](../mr/coordinator.go#L40)
+- [Worker (NewActor)](../mr/worker.go#L26)
+- [Actor](../mr/actor.go#L33)
+- [MapTask](../mr/task.go#L60)
+- [ReduceTask](../mr/task.go#L144)
+
+```mermaid
+classDiagram
+  direction LR
+  note "This is a MapReduce Lab"
+  class Coordinator {
+    - MapTasks : map[TaskId]TaskViewModel
+    - ReduceTasks : map[TaskId]TaskViewModel
+    - LivedActors
+    - done : atomic.Bool
+    - mu : sync.Mutex
+
+
+    + Connect()
+    + AcquiredTask()
+    + ReportTaskResult()
+    + Done()
+
+    - server()
+  }
+
+  class Actor {
+    + Run()
+    - acquireTask()
+    - reportTaskResult()
+  }
+
+  class Task {
+     <<interface>>
+    + Exec()
+  }
+
+  class TaskViewModel {
+    - Id 
+    - TaskKind
+    - TaskState
+    - TargetPath : []string
+    - NumberReduce
+    - AssignedActorId
+    
+    + ParseReduceId()
+    + IsIdle()
+  }
+
+  class MapTask {
+    + Exec()
+    - doMapper()
+    - shufflePartition()
+    - writeIntermediateFile()
+  }
+
+  class ReduceTask {
+    + Exec()
+    - doReducer()
+    - writeResultFile()
+  }
+
+  Actor --> Coordinator : request
+  Coordinator --> Actor : response
+  TaskViewModel "n" --* "1" Coordinator
+  Actor "1" ..> "1" Task : uses
+  Task <|.. MapTask : implement
+  Task <|.. ReduceTask : implement
+```
+
+## demo
+
+```shell
+# nMap=3 nReduce=2 worker=3
+
+go run ./coordinator/mrcoordinator.go pg-frankenstein.txt pg-metamorphosis.txt pg-being_ernest.txt                                                                               
+
+go run ./worker/mrworker.go
+```
+
+![demo1](./demo1.png)
+
+![demo2](./demo2.gif)
+
+## project layout
 
 ```
 ~/6.5840/src/lab1 $ tree -L 2
@@ -51,6 +136,9 @@ go run mrsequential.go ../pg*.txt
 ## Replace Go plugin
 
 ```go
+// before
 // mapf, reducef := loadPlugin(os.Args[1])
+
+// after
 mapf, reducef := lab1.Map, lab1.Reduce
 ```

@@ -28,7 +28,7 @@ const (
 )
 
 type Task interface {
-	Run() TaskResult
+	Exec() TaskResult
 }
 
 func NewMapTask(
@@ -57,7 +57,7 @@ type MapTask struct {
 	mapper          func(k1 string, v1 string) []KeyValue // map(k1,v1) → list(k2,v2)
 }
 
-func (t *MapTask) Run() TaskResult {
+func (t *MapTask) Exec() TaskResult {
 	kvAll := t.doMapper()
 	partitions := t.shufflePartition(kvAll)
 	filenameAll := t.writeIntermediateFile(partitions)
@@ -86,7 +86,6 @@ func (t *MapTask) shufflePartition(kvAll []KeyValue) [][]KeyValue {
 		})
 		key := kvAll[cursor].Key
 		reduceTaskId := ihash(key) % t.numberReduce
-		// fmt.Println("key", key, "head", head, "tail", tail)
 		partitions[reduceTaskId] = append(partitions[reduceTaskId], kvAll[head:tail]...)
 		cursor = tail
 	}
@@ -141,7 +140,7 @@ type ReduceTask struct {
 	reducer         func(k2 string, v2All []string) string // reduce(k2,list(v2)) → list(v2)
 }
 
-func (t *ReduceTask) Run() TaskResult {
+func (t *ReduceTask) Exec() TaskResult {
 	keys, results := t.doReducer()
 	filename := t.writeResultFile(keys, results)
 	return NewReduceTaskResult(t.id, t.taskState, filename)

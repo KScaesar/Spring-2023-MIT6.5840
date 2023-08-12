@@ -38,6 +38,9 @@ type Coordinator struct {
 }
 
 func (c *Coordinator) ReportTaskResult(result *TaskResult, _ *TaskResultResponse) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	log.Printf("ReportTaskResult input: %#v\n", result)
 	defer log.Printf(
 		"ReportTaskResult: state=%v  map{sum=%v idle=%v done=%v} reduce{sum=%v idle=%v done=%v}\n",
@@ -50,9 +53,6 @@ func (c *Coordinator) ReportTaskResult(result *TaskResult, _ *TaskResultResponse
 		c.ReduceTaskDoneSize,
 	)
 
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
 	switch result.TaskKind {
 	case TaskKindMap:
 		c.handleMapResult(result)
@@ -61,6 +61,39 @@ func (c *Coordinator) ReportTaskResult(result *TaskResult, _ *TaskResultResponse
 	}
 
 	return nil
+}
+
+func (c *Coordinator) handleMapResult(result *TaskResult) {
+	// The task might have been duplicated due to network issues.
+	if c.MapTasks[result.Id].TaskState == TaskStateDone {
+		return
+	}
+	c.updateMapTasksWhenMapStep(result)
+	c.updateReduceTasksWhenMapStep(result)
+	if c.MapTaskDoneSize == c.MapTaskSize {
+		c.State = CoordinatorStateReduce
+	}
+}
+
+func (c *Coordinator) updateMapTasksWhenMapStep(result *TaskResult) {
+	mapTask := c.MapTasks[result.Id]
+	mapTask.TaskState = result.TaskState
+	c.MapTasks[result.Id] = mapTask
+	c.MapTaskDoneSize++
+}
+
+func (c *Coordinator) updateReduceTasksWhenMapStep(result *TaskResult) {
+	reduceIdAll := result.ParseReduceIdAll()
+	for i, reduceId := range reduceIdAll {
+		reduceTask, exist := c.ReduceTasks[reduceId]
+		if exist {
+			reduceTask.TargetPath = append(reduceTask.TargetPath, result.FilenameAll[i])
+		} else {
+			reduceTask = NewReduceTaskViewModelWhenMapTaskDone(reduceId, result.FilenameAll[i], c.ReduceTaskSize)
+		}
+		c.ReduceTasks[reduceId] = reduceTask
+	}
+	c.ReduceTaskIdleSize++
 }
 
 func (c *Coordinator) handleReduceResult(result *TaskResult) {
@@ -77,43 +110,12 @@ func (c *Coordinator) handleReduceResult(result *TaskResult) {
 	}
 }
 
-func (c *Coordinator) handleMapResult(result *TaskResult) {
-	// The task might have been duplicated due to network issues.
-	if c.MapTasks[result.Id].TaskState == TaskStateDone {
-		return
-	}
-	c.updateMapTasks(result)
-	c.updateReduceTasks(result)
-	if c.MapTaskDoneSize == c.MapTaskSize {
-		c.State = CoordinatorStateReduce
-	}
-}
-
-func (c *Coordinator) updateMapTasks(result *TaskResult) {
-	mapTask := c.MapTasks[result.Id]
-	mapTask.TaskState = result.TaskState
-	c.MapTasks[result.Id] = mapTask
-	c.MapTaskDoneSize++
-}
-
-func (c *Coordinator) updateReduceTasks(result *TaskResult) {
-	reduceIdAll := result.ParseReduceIdAll()
-	for i, reduceId := range reduceIdAll {
-		reduceTask, exist := c.ReduceTasks[reduceId]
-		if exist {
-			reduceTask.TargetPath = append(reduceTask.TargetPath, result.FilenameAll[i])
-		} else {
-			reduceTask = NewReduceTaskViewModelWhenMapTaskDone(reduceId, result.FilenameAll[i], c.ReduceTaskSize)
-		}
-		c.ReduceTasks[reduceId] = reduceTask
-	}
-	c.ReduceTaskIdleSize++
-}
-
 func (c *Coordinator) AcquiredTask(command *AcquireTaskCommand, resp *AcquiredTaskResponse) error {
+	c.mu.Lock()
+	defer c.mu.Lock()
+
 	log.Printf("AcquiredTask input: %#v\n", command)
 	defer log.Printf("AcquiredTask output: %#v\n", resp)
-	c.mu.Lock()
 
 	var task TaskViewModel
 	var err error
@@ -123,7 +125,6 @@ func (c *Coordinator) AcquiredTask(command *AcquireTaskCommand, resp *AcquiredTa
 	case CoordinatorStateReduce:
 		task, err = c.assignTask(command.ActorId, &c.ReduceTaskIdleSize, c.ReduceTasks)
 	}
-	c.mu.Unlock()
 
 	if err != nil {
 		*resp = NewNotAcquiredTaskResponse()

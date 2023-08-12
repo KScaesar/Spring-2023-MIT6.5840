@@ -9,7 +9,7 @@ import (
 	"unicode"
 )
 
-func TestMapTask_Run(t1 *testing.T) {
+func TestMapTask_Exec(t1 *testing.T) {
 	dto := &TaskViewModel{
 		Id:              3,
 		TaskKind:        TaskKindMap,
@@ -30,10 +30,10 @@ func TestMapTask_Run(t1 *testing.T) {
 	}
 	task := NewMapTask(dto, wordCountMapper)
 
-	task.Run()
+	task.Exec()
 }
 
-func TestReduceTask_Run(t1 *testing.T) {
+func TestReduceTask_Exec(t1 *testing.T) {
 	dto := &TaskViewModel{
 		Id:        0,
 		TaskKind:  TaskKindReduce,
@@ -49,5 +49,5 @@ func TestReduceTask_Run(t1 *testing.T) {
 	}
 	task := NewReduceTask(dto, wordCountReducer)
 
-	task.Run()
+	task.Exec()
 }
