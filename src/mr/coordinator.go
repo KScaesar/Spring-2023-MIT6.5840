@@ -141,14 +141,14 @@ func (c *Coordinator) assignTask(actorId ActorId, idleSize *int, tasks map[TaskI
 	return TaskViewModel{}, ErrNoTask
 }
 
-func (c *Coordinator) RegisterActor(_ *RegisterActorCommand, resp *RegisteredActorResponse) error {
+func (c *Coordinator) Connect(_ *ConnectCommand, resp *ConnectResponse) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	actorId := c.NewActorId()
 	c.LivedActors[actorId] = true
-	*resp = NewRegisteredActorResponse(actorId)
-	log.Printf("RegisterActor output: actorId=%v\n", actorId)
+	*resp = NewConnectResponse(actorId)
+	log.Printf("Connect output: actorId=%v\n", actorId)
 	return nil
 }
 

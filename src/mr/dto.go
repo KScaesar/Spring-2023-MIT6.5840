@@ -6,19 +6,19 @@ import (
 	"strings"
 )
 
-func NewRegisterActorCommand(actorLocation string) RegisterActorCommand {
-	return RegisterActorCommand{ActorLocation: actorLocation}
+func NewConnectCommand(actorLocation string) ConnectCommand {
+	return ConnectCommand{ActorLocation: actorLocation}
 }
 
-type RegisterActorCommand struct {
+type ConnectCommand struct {
 	ActorLocation string
 }
 
-func NewRegisteredActorResponse(actorId ActorId) RegisteredActorResponse {
-	return RegisteredActorResponse{ActorId: actorId}
+func NewConnectResponse(actorId ActorId) ConnectResponse {
+	return ConnectResponse{ActorId: actorId}
 }
 
-type RegisteredActorResponse struct {
+type ConnectResponse struct {
 	ActorId ActorId
 }
 

@@ -28,14 +28,14 @@ func Worker(
 	reducef func(string, []string) string,
 ) {
 	pid := os.Getpid()
-	command := NewRegisterActorCommand(fmt.Sprintf("pid='%v'", pid))
-	resp := RegisteredActorResponse{}
-	ok := call("Coordinator.RegisterActor", &command, &resp)
+	command := NewConnectCommand(fmt.Sprintf("pid='%v'", pid))
+	resp := ConnectResponse{}
+	ok := call("Coordinator.Connect", &command, &resp)
 	if !ok {
-		log.Println("call Coordinator.RegisterActor failed")
+		log.Println("Coordinator.Connect failed")
 		return
 	}
-	log.Printf("Coordinator.RegisterActor: response=%#v\n", resp)
+	log.Printf("Coordinator.Connect: response=%#v\n", resp)
 
 	actor := NewActor(resp.ActorId, pid, mapf, reducef)
 	actor.Run()
