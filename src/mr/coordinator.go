@@ -112,7 +112,7 @@ func (c *Coordinator) handleReduceResult(result *TaskResult) {
 
 func (c *Coordinator) AcquiredTask(command *AcquireTaskCommand, resp *AcquiredTaskResponse) error {
 	c.mu.Lock()
-	defer c.mu.Lock()
+	defer c.mu.Unlock()
 
 	log.Printf("AcquiredTask input: %#v\n", command)
 	defer log.Printf("AcquiredTask output: %#v\n", resp)
