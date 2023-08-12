@@ -39,6 +39,17 @@ type Coordinator struct {
 
 func (c *Coordinator) ReportTaskResult(result *TaskResult, _ *TaskResultResponse) error {
 	log.Printf("ReportTaskResult input: %#v\n", result)
+	defer log.Printf(
+		"ReportTaskResult: state=%v  map{sum=%v idle=%v done=%v} reduce{sum=%v idle=%v done=%v}\n",
+		c.State,
+		c.MapTaskSize,
+		c.MapTaskIdleSize,
+		c.MapTaskDoneSize,
+		c.ReduceTaskSize,
+		c.ReduceTaskIdleSize,
+		c.ReduceTaskDoneSize,
+	)
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -101,6 +112,7 @@ func (c *Coordinator) updateReduceTasks(result *TaskResult) {
 
 func (c *Coordinator) AcquiredTask(command *AcquireTaskCommand, resp *AcquiredTaskResponse) error {
 	log.Printf("AcquiredTask input: %#v\n", command)
+	defer log.Printf("AcquiredTask output: %#v\n", resp)
 	c.mu.Lock()
 
 	var task TaskViewModel
@@ -148,7 +160,7 @@ func (c *Coordinator) Connect(_ *ConnectCommand, resp *ConnectResponse) error {
 	actorId := c.NewActorId()
 	c.LivedActors[actorId] = true
 	*resp = NewConnectResponse(actorId)
-	log.Printf("Connect output: actorId=%v\n", actorId)
+	log.Printf("Connect: actorId=%v\n", actorId)
 	return nil
 }
 
@@ -179,7 +191,11 @@ func (c *Coordinator) server() {
 // main/mrcoordinator.go calls Done() periodically to find out
 // if the entire job has finished.
 func (c *Coordinator) Done() bool {
-	return c.done.Load()
+	done := c.done.Load()
+	if done {
+		log.Println("Coordinator task all done !")
+	}
+	return done
 }
 
 // create a Coordinator.
