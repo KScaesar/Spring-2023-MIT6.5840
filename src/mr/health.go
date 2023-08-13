@@ -6,14 +6,14 @@ import (
 	"time"
 )
 
-func NewHealthChecker(timeout time.Duration, logger *log.Logger) *HealthChecker {
-	return &HealthChecker{
+func NewHealthChecker[Id any](timeout time.Duration, logger *log.Logger) *HealthChecker[Id] {
+	return &HealthChecker[Id]{
 		timeoutLimit: timeout,
 		logger:       logger,
 	}
 }
 
-type HealthChecker struct {
+type HealthChecker[Id any] struct {
 	livedConnections sync.Map // map[Identifier]chan Struct{}
 
 	// using notifyAction to determine whether connection have ever joined before.
@@ -23,12 +23,12 @@ type HealthChecker struct {
 	logger       *log.Logger
 }
 
-func (hc *HealthChecker) JoinConnection(id ActorId, notifyActionWhenConnectionDead func(id ActorId)) {
+func (hc *HealthChecker[Id]) JoinConnection(id Id, notifyActionWhenConnectionDead func(id Id)) {
 	hc.setupPingEnvironment(id, notifyActionWhenConnectionDead)
 	log.Printf("Connect: identifiier=%#v\n", id)
 }
 
-func (hc *HealthChecker) setupPingEnvironment(id ActorId, notify func(id ActorId)) {
+func (hc *HealthChecker[Id]) setupPingEnvironment(id Id, notify func(id Id)) {
 	timeout := time.NewTimer(hc.timeoutLimit)
 	healthChannel := make(chan struct{})
 	hc.livedConnections.Store(id, healthChannel)
@@ -52,7 +52,7 @@ func (hc *HealthChecker) setupPingEnvironment(id ActorId, notify func(id ActorId
 	}()
 }
 
-func (hc *HealthChecker) Ping(id ActorId) {
+func (hc *HealthChecker[Id]) Ping(id Id) {
 	health, isLive := hc.getHealthChannel(id)
 	if isLive {
 		go func() {
@@ -69,7 +69,7 @@ func (hc *HealthChecker) Ping(id ActorId) {
 	hc.reJoinConnectionForHandleNetworkIssue(id)
 }
 
-func (hc *HealthChecker) reJoinConnectionForHandleNetworkIssue(id ActorId) {
+func (hc *HealthChecker[Id]) reJoinConnectionForHandleNetworkIssue(id Id) {
 	notifyAction, isJoin := hc.getNotifyAction(id)
 	if !isJoin {
 		hc.logger.Fatalln("Must call JoinConnection before calling the Ping method.")
@@ -77,12 +77,12 @@ func (hc *HealthChecker) reJoinConnectionForHandleNetworkIssue(id ActorId) {
 	hc.JoinConnection(id, notifyAction)
 }
 
-func (hc *HealthChecker) getHealthChannel(id ActorId) (ch chan struct{}, isLive bool) {
+func (hc *HealthChecker[Id]) getHealthChannel(id Id) (ch chan struct{}, isLive bool) {
 	value, isLive := hc.livedConnections.Load(id)
 	return value.(chan struct{}), isLive
 }
 
-func (hc *HealthChecker) getNotifyAction(id ActorId) (ch func(id ActorId), isJoin bool) {
+func (hc *HealthChecker[Id]) getNotifyAction(id Id) (ch func(id Id), isJoin bool) {
 	value, isJoin := hc.notifyAction.Load(id)
-	return value.(func(id ActorId)), isJoin
+	return value.(func(id Id)), isJoin
 }

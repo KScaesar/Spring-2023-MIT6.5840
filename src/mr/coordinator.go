@@ -20,7 +20,7 @@ const (
 
 type Coordinator struct {
 	NewActorId func() ActorId
-	health     *HealthChecker
+	health     *HealthChecker[ActorId]
 
 	MapTasks        map[TaskId]TaskViewModel
 	MapTaskSize     int
@@ -265,7 +265,7 @@ func MakeCoordinator(files []string, nReduce int) *Coordinator {
 		ReduceTaskDoneSize: 0,
 		State:              CoordinatorStateMap,
 		done:               atomic.Bool{},
-		health:             NewHealthChecker(healthTimeoutLimit, log.Default()),
+		health:             NewHealthChecker[ActorId](healthTimeoutLimit, log.Default()),
 		mu:                 sync.Mutex{},
 	}
 

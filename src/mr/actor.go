@@ -62,7 +62,7 @@ func (a *Actor) Run() {
 				log.Fatalln(err.Error())
 			}
 			result := task.Exec()
-			time.Sleep(3 * time.Second)
+			// time.Sleep(3 * time.Second)
 			a.reportTaskResult(&result)
 		}
 	}
