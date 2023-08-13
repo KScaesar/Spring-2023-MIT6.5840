@@ -164,10 +164,13 @@ func (t *ReduceTask) doReducer() (keys []string, results map[string]string) {
 			})
 
 			key = payload[head].Key
+			_, ok := pairs[key]
+			if !ok {
+				keys = append(keys, key)
+			}
 			for _, kv := range payload[head:tail] {
 				pairs[key] = append(pairs[key], kv.Value)
 			}
-			keys = append(keys, key)
 			cursor = tail
 		}
 
