@@ -17,7 +17,7 @@ type HealthChecker[Id any] struct {
 	livedConnections sync.Map // map[Identifier]chan Struct{}
 
 	// using notifyAction to determine whether connection have ever joined before.
-	notifyAction sync.Map // map[Identifier]func(id T)
+	notifyAction sync.Map // map[Identifier]func(id Id)
 
 	timeoutLimit time.Duration
 	logger       *log.Logger

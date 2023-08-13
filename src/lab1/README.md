@@ -5,11 +5,12 @@
 ## code design
 
 [implement code](../mr)
-- [Coordinator](../mr/coordinator.go#L40)
+- [Coordinator](../mr/coordinator.go#L41)
+- [HealthChecker](../mr/health.go#L31)
 - [Worker (NewActor)](../mr/worker.go#L26)
-- [Actor](../mr/actor.go#L33)
+- [Actor](../mr/actor.go#L51)
 - [MapTask](../mr/task.go#L60)
-- [ReduceTask](../mr/task.go#L144)
+- [ReduceTask](../mr/task.go#L143)
 
 ```mermaid
 classDiagram
@@ -18,21 +19,30 @@ classDiagram
   class Coordinator {
     - MapTasks : map[TaskId]TaskViewModel
     - ReduceTasks : map[TaskId]TaskViewModel
-    - LivedActors
+    - HealthChecker
     - done : atomic.Bool
     - mu : sync.Mutex
-
 
     + Connect()
     + AcquiredTask()
     + ReportTaskResult()
     + Done()
-
+    + CheckHealth()
     - server()
+    - rearrangeTaskWhenActorDead()
+  }
+  
+  class HealthChecker{
+     - livedConnections : sync.Map 
+     - notifyAction : sync.Map     
+     + JoinConnection() 
+     + Ping()
+     - reJoinConnectionForHandleNetworkIssue()
   }
 
   class Actor {
     + Run()
+    + CheckHealth()
     - acquireTask()
     - reportTaskResult()
   }
@@ -66,25 +76,12 @@ classDiagram
 
   Actor --> Coordinator : request
   Coordinator --> Actor : response
+  Coordinator "1" -- "1" HealthChecker 
   TaskViewModel "n" --* "1" Coordinator
   Actor "1" ..> "1" Task : uses
   Task <|.. MapTask : implement
   Task <|.. ReduceTask : implement
 ```
-
-## demo
-
-```shell
-# nMap=3 nReduce=2 worker=3
-
-go run ./coordinator/mrcoordinator.go pg-frankenstein.txt pg-metamorphosis.txt pg-being_ernest.txt                                                                               
-
-go run ./worker/mrworker.go
-```
-
-![demo1](./demo1.png)
-
-![demo2](./demo2.gif)
 
 ## project layout
 
@@ -112,16 +109,12 @@ go run ./worker/mrworker.go
   └── mrworker.go
 ```
 
-```shell
-# ~/6.5840/src/lab1
-cd ./coordinator
-go run mrcoordinator.go ../pg*.txt
-```
+
 
 ```shell
-# ~/6.5840/src/lab1
-cd ./worker
-go run mrworker.go 
+go run ./coordinator/mrcoordinator.go pg*.txt &
+
+go run ./worker/mrworker.go
 ```
 
 ```shell
