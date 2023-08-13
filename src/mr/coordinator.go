@@ -8,6 +8,7 @@ import (
 	"os"
 	"sync"
 	"sync/atomic"
+	"time"
 )
 
 type CoordinatorState int
@@ -18,8 +19,8 @@ const (
 )
 
 type Coordinator struct {
-	NewActorId  func() ActorId
-	LivedActors map[ActorId]bool
+	NewActorId func() ActorId
+	health     *HealthChecker
 
 	MapTasks        map[TaskId]TaskViewModel
 	MapTaskSize     int
@@ -42,16 +43,7 @@ func (c *Coordinator) ReportTaskResult(result *TaskResult, _ *TaskResultResponse
 	defer c.mu.Unlock()
 
 	log.Printf("ReportTaskResult input: %#v\n", result)
-	defer log.Printf(
-		"ReportTaskResult: state=%v  map{sum=%v idle=%v done=%v} reduce{sum=%v idle=%v done=%v}\n",
-		c.State,
-		c.MapTaskSize,
-		c.MapTaskIdleSize,
-		c.MapTaskDoneSize,
-		c.ReduceTaskSize,
-		c.ReduceTaskIdleSize,
-		c.ReduceTaskDoneSize,
-	)
+	defer c.printInfo()
 
 	switch result.TaskKind {
 	case TaskKindMap:
@@ -154,15 +146,58 @@ func (c *Coordinator) assignTask(actorId ActorId, idleSize *int, tasks map[TaskI
 	return TaskViewModel{}, ErrNoTask
 }
 
+func (c *Coordinator) CheckHealth(cmd *CheckHealthCommand, _ *CheckHealthResponse) error {
+	c.health.Ping(cmd.ActorId)
+	return nil
+}
+
 func (c *Coordinator) Connect(_ *ConnectCommand, resp *ConnectResponse) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	actorId := c.NewActorId()
-	c.LivedActors[actorId] = true
+	c.health.JoinConnection(actorId, c.rearrangeTaskWhenActorDead)
 	*resp = NewConnectResponse(actorId)
-	log.Printf("Connect: actorId=%v\n", actorId)
 	return nil
+}
+
+func (c *Coordinator) rearrangeTaskWhenActorDead(id ActorId) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	defer c.printInfo()
+
+	switch c.State {
+	case CoordinatorStateMap:
+		c.setTaskToIdle(id, &c.MapTaskIdleSize, c.MapTasks)
+	case CoordinatorStateReduce:
+		c.setTaskToIdle(id, &c.ReduceTaskIdleSize, c.ReduceTasks)
+	}
+}
+
+func (c *Coordinator) setTaskToIdle(actorId ActorId, idleSize *int, tasks map[TaskId]TaskViewModel) {
+	for taskId, task := range tasks {
+		if task.AssignedActorId == actorId && task.TaskState == TaskStateInProgress {
+			task.TaskState = TaskStateIdle
+			tasks[taskId] = task
+			*idleSize++
+			log.Printf("setTaskToIdle: taskId=%v kind=%v is idle\n", taskId, task.TaskKind)
+			return
+		}
+	}
+	log.Printf("setTaskToIdle: no task be assigned to actorId=%v\n", actorId)
+}
+
+func (c *Coordinator) printInfo() {
+	log.Printf(
+		"Info: state=%v  map{sum=%v idle=%v done=%v} reduce{sum=%v idle=%v done=%v}\n",
+		c.State,
+		c.MapTaskSize,
+		c.MapTaskIdleSize,
+		c.MapTaskDoneSize,
+		c.ReduceTaskSize,
+		c.ReduceTaskIdleSize,
+		c.ReduceTaskDoneSize,
+	)
 }
 
 // Your code here -- RPC handlers for the worker to call.
@@ -216,9 +251,10 @@ func MakeCoordinator(files []string, nReduce int) *Coordinator {
 		tasks[id] = NewMapTaskViewModelWhenSetupCoordinator(id, files[i], nReduce)
 	}
 
+	const healthTimeoutLimit = 10 * time.Second
+
 	c := Coordinator{
 		NewActorId:         NewActorId,
-		LivedActors:        make(map[ActorId]bool),
 		MapTasks:           tasks,
 		MapTaskSize:        fileQty,
 		MapTaskIdleSize:    fileQty,
@@ -229,6 +265,7 @@ func MakeCoordinator(files []string, nReduce int) *Coordinator {
 		ReduceTaskDoneSize: 0,
 		State:              CoordinatorStateMap,
 		done:               atomic.Bool{},
+		health:             NewHealthChecker(healthTimeoutLimit, log.Default()),
 		mu:                 sync.Mutex{},
 	}
 

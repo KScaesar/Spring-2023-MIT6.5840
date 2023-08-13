@@ -128,3 +128,13 @@ type AcquiredTaskResponse struct {
 	Task           TaskViewModel
 	IsTaskAcquired bool
 }
+
+func NewCheckHealthCommand(actorId ActorId) CheckHealthCommand {
+	return CheckHealthCommand{ActorId: actorId}
+}
+
+type CheckHealthCommand struct {
+	ActorId ActorId
+}
+
+type CheckHealthResponse struct{}

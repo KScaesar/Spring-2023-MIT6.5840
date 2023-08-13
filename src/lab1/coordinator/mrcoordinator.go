@@ -23,7 +23,7 @@ func main() {
 	// }
 
 	// os.Args[1:] for file name
-	m := mr.MakeCoordinator(os.Args[1:], 2)
+	m := mr.MakeCoordinator(os.Args[1:], 10)
 	for m.Done() == false {
 		time.Sleep(time.Second)
 	}

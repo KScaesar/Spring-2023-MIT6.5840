@@ -30,13 +30,31 @@ type Actor struct {
 	reducer   func(string, []string) string
 }
 
+func (a *Actor) CheckHealth() {
+	ticker := time.NewTicker(4 * time.Second)
+	defer ticker.Stop()
+	cmd := NewCheckHealthCommand(a.Id)
+	resp := CheckHealthResponse{}
+
+	for {
+		select {
+		case <-ticker.C:
+			ok := call("Coordinator.CheckHealth", &cmd, &resp)
+			if !ok {
+				log.Fatalln("Coordinator.CheckHealth fail")
+				return
+			}
+		}
+	}
+}
+
 func (a *Actor) Run() {
 	log.Printf("Actor run: actorId=%v, processId=%v\n", a.Id, a.ProcessId)
 	ticker := time.NewTicker(1 * time.Second)
 	for {
 		select {
 		case <-ticker.C:
-			task, err := a.AcquireTask()
+			task, err := a.acquireTask()
 			if err != nil {
 				if errors.Is(err, ErrNoTask) {
 					continue
@@ -44,12 +62,13 @@ func (a *Actor) Run() {
 				log.Fatalln(err.Error())
 			}
 			result := task.Exec()
-			a.ReportTaskResult(&result)
+			time.Sleep(3 * time.Second)
+			a.reportTaskResult(&result)
 		}
 	}
 }
 
-func (a *Actor) ReportTaskResult(r *TaskResult) {
+func (a *Actor) reportTaskResult(r *TaskResult) {
 	resp := TaskResultResponse{}
 	ok := call("Coordinator.ReportTaskResult", r, &resp)
 	if !ok {
@@ -59,7 +78,7 @@ func (a *Actor) ReportTaskResult(r *TaskResult) {
 	return
 }
 
-func (a *Actor) AcquireTask() (Task, error) {
+func (a *Actor) acquireTask() (Task, error) {
 	command := NewAcquireTaskCommand(a.Id)
 	resp := AcquiredTaskResponse{}
 	ok := call("Coordinator.AcquiredTask", &command, &resp)

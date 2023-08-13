@@ -38,6 +38,7 @@ func Worker(
 	log.Printf("Coordinator.Connect: response=%#v\n", resp)
 
 	actor := NewActor(resp.ActorId, pid, mapf, reducef)
+	go actor.CheckHealth()
 	actor.Run()
 }
 
