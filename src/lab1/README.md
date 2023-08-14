@@ -86,7 +86,7 @@ classDiagram
 ## lab test.sh result
 
 ```shell
- 🐱 > tbash test-mr.sh
+ 🐱 > bash test-mr.sh
 *** Starting wc test.
 --- wc test: PASS
 *** Starting indexer test.
@@ -103,10 +103,6 @@ classDiagram
 --- crash test: PASS
 *** PASSED ALL TESTS
 # took 2m12s
-```
-
-```shell
- 🐱 > tbash test-mr.sh
 ```
 
 ## project layout
